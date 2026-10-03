@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::grid::{DrawMode, Grid};
+use crate::grid::grid::{DrawMode, Grid};
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -238,7 +238,9 @@ impl GpuGrid {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shaders"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("simulation.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("../../assets/shaders/simulation.wgsl").into(),
+            ),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

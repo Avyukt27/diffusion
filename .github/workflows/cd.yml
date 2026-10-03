@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*.*.*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 permissions:
   contents: write
   pages: write
@@ -15,65 +18,59 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build-native:
+    name: Build (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Linux (AMD64)
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin_name: diffusion
+            artifact_name: release-artifact-linux
+            rustflags: ""
+
+          - name: Windows (AMD64)
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+            bin_name: diffusion.exe
+            artifact_name: release-artifact-windows
+            rustflags: "-C link-arg=-Wl,--exclude-all-symbols"
+
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
+
+      - name: Cache Cargo Registry & Target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-gnu
+          targets: ${{ matrix.platform.target }}
 
-      - name: Build Linux Target
-        run: cargo build --target x86_64-unknown-linux-gnu --release
-
-      - name: Package Linux Binary
-        run: |
-          cd target/x86_64-unknown-linux-gnu/release
-          tar -czf ../../../diffusion-linux-x86_64.tar.gz diffusion
-
-      - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-artifact-linux
-          path: diffusion-linux-x86_64.tar.gz
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-gnu
-
-      - name: Build Windows Target
+      - name: Build Target
         env:
-          RUSTFLAGS: "-C link-arg=-Wl,--exclude-all-symbols"
-        run: cargo build --target x86_64-pc-windows-gnu --release
+          RUSTFLAGS: ${{ matrix.platform.rustflags }}
+        run: cargo build --target ${{ matrix.platform.target }} --release --verbose
 
-      - name: Package Windows Binary
-        run: |
-          cd target/x86_64-pc-windows-gnu/release
-          7z a ../../../diffusion-windows-x86_64.zip diffusion.exe
-
-      - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v7
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: release-artifact-windows
-          path: diffusion-windows-x86_64.zip
+          name: ${{ matrix.platform.artifact_name }}
+          path: target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_name }}
 
   build-wasm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      - uses: actions/checkout@v4
 
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0
@@ -81,17 +78,20 @@ jobs:
           version: 'latest'
 
       - name: Build WebAssembly Target
-        run: wasm-pack build --target web --out-dir pkg
+        run: wasm-pack build --target web --out-dir web/pkg
 
       - name: Stage Public Static Folder
         run: |
           mkdir -p dist
-          if [ ! -f index.html ]; then
-            echo "ERROR: index.html missing from repository root!"
+          if [ ! -f web/index.html ]; then
+            echo "ERROR: index.html missing from web dir!"
             exit 1
           fi
-          cp index.html dist/
-          cp -r pkg dist/
+          cp web/index.html dist/
+          if [ -f web/favicon.png ]; then
+            cp web/favicon.png dist/
+          fi
+          cp -r web/pkg dist/
           touch dist/.nojekyll
 
       - name: Upload Pages Artifact
@@ -109,31 +109,34 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
-        with:
-          artifact_name: release-artifact-wasm
+        uses: actions/deploy-pages@v4
 
   publish-release:
-    needs: [build-linux, build-windows]
+    needs: build-native
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-
       - name: Download Linux Asset
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: release-artifact-linux
+          path: ./artifacts/linux
 
       - name: Download Windows Asset
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: release-artifact-windows
+          path: ./artifacts/windows
+
+      - name: Rename Binaries for Release
+        run: |
+          mv ./artifacts/linux/diffusion ./artifacts/linux/diffusion-linux-amd64
+          mv ./artifacts/windows/diffusion.exe ./artifacts/windows/diffusion-windows-amd64.exe
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            diffusion-linux-x86_64.tar.gz
-            diffusion-windows-x86_64.zip
+            ./artifacts/linux/diffusion-linux-amd64
+            ./artifacts/windows/diffusion-windows-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

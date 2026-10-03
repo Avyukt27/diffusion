@@ -9,8 +9,10 @@ use winit::{
 };
 
 use crate::{
-    cpu_grid::CpuGrid,
-    grid::{Grid, GridType},
+    grid::{
+        cpu::CpuGrid,
+        grid::{Grid, GridType},
+    },
     renderer::Renderer,
 };
 
@@ -48,7 +50,7 @@ impl State {
                     .flags
                     .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS);
                 if supports_compute {
-                    use crate::gpu_grid::GpuGrid;
+                    use crate::grid::gpu::GpuGrid;
 
                     GridType::Gpu(GpuGrid::new(
                         WIDTH,

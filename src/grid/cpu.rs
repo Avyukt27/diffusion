@@ -1,4 +1,4 @@
-use crate::grid::{DrawMode, Grid};
+use crate::grid::grid::{DrawMode, Grid};
 
 pub struct CpuGrid {
     width: usize,

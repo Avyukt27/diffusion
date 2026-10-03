@@ -39,7 +39,7 @@ impl App {
 
 impl ApplicationHandler<State> for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let icon = image::load_from_memory(include_bytes!("../favicon.png"))
+        let icon = image::load_from_memory(include_bytes!("../web/favicon.png"))
             .unwrap()
             .into_rgba8();
         let (width, height) = icon.dimensions();

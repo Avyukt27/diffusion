@@ -1,4 +1,4 @@
-use crate::{cpu_grid::CpuGrid, gpu_grid::GpuGrid};
+use crate::grid::{cpu::CpuGrid, gpu::GpuGrid};
 
 pub trait Grid {
     fn width(&self) -> usize;
